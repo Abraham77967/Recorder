@@ -114,6 +114,10 @@ class TimerAndRecorder {
         this.saveNoteBtn.addEventListener('click', () => this.saveNote());
         this.cancelNoteBtn.addEventListener('click', () => this.cancelNote());
         
+        // Update export button state when typing in note fields
+        this.noteTitle.addEventListener('input', () => this.updateExportButtonState());
+        this.noteContent.addEventListener('input', () => this.updateExportButtonState());
+        
         // Notes export modal event listeners
         this.closeNotesModalBtn.addEventListener('click', () => this.hideNotesExportModal());
         this.cancelNotesExportBtn.addEventListener('click', () => this.hideNotesExportModal());
@@ -547,7 +551,7 @@ class TimerAndRecorder {
     
     renderNotes() {
         // Update export button state
-        this.exportNotesBtn.disabled = this.notes.length === 0;
+        this.updateExportButtonState();
         
         if (this.notes.length === 0) {
             this.notesList.innerHTML = `
@@ -580,6 +584,14 @@ class TimerAndRecorder {
         }).join('');
     }
     
+    updateExportButtonState() {
+        // Check if there are saved notes OR if user is typing in note fields
+        const hasSavedNotes = this.notes.length > 0;
+        const hasUnsavedContent = this.noteTitle.value.trim() || this.noteContent.value.trim();
+        
+        this.exportNotesBtn.disabled = !hasSavedNotes && !hasUnsavedContent;
+    }
+    
     saveNotesToStorage() {
         localStorage.setItem('notes', JSON.stringify(this.notes));
     }
@@ -592,7 +604,11 @@ class TimerAndRecorder {
     
     // Notes export functionality
     showNotesExportModal() {
-        if (this.notes.length === 0) {
+        // Check if there are saved notes OR unsaved content
+        const hasSavedNotes = this.notes.length > 0;
+        const hasUnsavedContent = this.noteTitle.value.trim() || this.noteContent.value.trim();
+        
+        if (!hasSavedNotes && !hasUnsavedContent) {
             this.showNotification('No notes to export.', 'error');
             return;
         }
@@ -647,6 +663,7 @@ class TimerAndRecorder {
         let text = `Notes Export - ${new Date().toLocaleDateString()}\n`;
         text += '='.repeat(50) + '\n\n';
         
+        // Add saved notes
         this.notes.forEach((note, index) => {
             text += `${index + 1}. ${note.title}\n`;
             text += `   Created: ${new Date(note.createdAt).toLocaleString()}\n`;
@@ -656,6 +673,16 @@ class TimerAndRecorder {
             text += `   Content: ${note.content}\n\n`;
         });
         
+        // Add unsaved content if exists
+        const unsavedTitle = this.noteTitle.value.trim();
+        const unsavedContent = this.noteContent.value.trim();
+        if (unsavedTitle || unsavedContent) {
+            const noteIndex = this.notes.length + 1;
+            text += `${noteIndex}. ${unsavedTitle || 'Untitled Note'}\n`;
+            text += `   Created: ${new Date().toLocaleString()} (Unsaved)\n`;
+            text += `   Content: ${unsavedContent}\n\n`;
+        }
+        
         return text;
     }
     
@@ -663,6 +690,7 @@ class TimerAndRecorder {
         let markdown = `# Notes Export\n\n`;
         markdown += `*Generated on ${new Date().toLocaleDateString()}*\n\n`;
         
+        // Add saved notes
         this.notes.forEach((note, index) => {
             markdown += `## ${index + 1}. ${note.title}\n\n`;
             markdown += `**Created:** ${new Date(note.createdAt).toLocaleString()}\n`;
@@ -672,20 +700,47 @@ class TimerAndRecorder {
             markdown += `\n${note.content}\n\n---\n\n`;
         });
         
+        // Add unsaved content if exists
+        const unsavedTitle = this.noteTitle.value.trim();
+        const unsavedContent = this.noteContent.value.trim();
+        if (unsavedTitle || unsavedContent) {
+            const noteIndex = this.notes.length + 1;
+            markdown += `## ${noteIndex}. ${unsavedTitle || 'Untitled Note'}\n\n`;
+            markdown += `**Created:** ${new Date().toLocaleString()} (Unsaved)\n`;
+            markdown += `\n${unsavedContent}\n\n---\n\n`;
+        }
+        
         return markdown;
     }
     
     generateJsonPreview() {
+        // Include unsaved content in notes array
+        const allNotes = [...this.notes];
+        const unsavedTitle = this.noteTitle.value.trim();
+        const unsavedContent = this.noteContent.value.trim();
+        
+        if (unsavedTitle || unsavedContent) {
+            allNotes.push({
+                id: 'unsaved',
+                title: unsavedTitle || 'Untitled Note',
+                content: unsavedContent,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                isUnsaved: true
+            });
+        }
+        
         return JSON.stringify({
             exportDate: new Date().toISOString(),
-            totalNotes: this.notes.length,
-            notes: this.notes
+            totalNotes: allNotes.length,
+            notes: allNotes
         }, null, 2);
     }
     
     generateCsvPreview() {
         let csv = 'Title,Created,Updated,Content\n';
         
+        // Add saved notes
         this.notes.forEach(note => {
             const title = `"${note.title.replace(/"/g, '""')}"`;
             const created = new Date(note.createdAt).toLocaleString();
@@ -693,6 +748,16 @@ class TimerAndRecorder {
             const content = `"${note.content.replace(/"/g, '""')}"`;
             csv += `${title},${created},${updated},${content}\n`;
         });
+        
+        // Add unsaved content if exists
+        const unsavedTitle = this.noteTitle.value.trim();
+        const unsavedContent = this.noteContent.value.trim();
+        if (unsavedTitle || unsavedContent) {
+            const title = `"${(unsavedTitle || 'Untitled Note').replace(/"/g, '""')}"`;
+            const created = new Date().toLocaleString();
+            const content = `"${unsavedContent.replace(/"/g, '""')}"`;
+            csv += `${title},${created},${created},${content}\n`;
+        }
         
         return csv;
     }
