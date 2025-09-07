@@ -68,11 +68,11 @@
             <div class="card notes-card">
                 <div class="card-header">
                     <h2>Notes</h2>
-                    <div class="notes-controls">
-                        <button id="new-note" class="control-btn primary">New Note</button>
-                        <button id="export-notes" class="control-btn export" disabled>Export</button>
-                        <button id="clear-notes" class="control-btn danger">Clear All</button>
-                    </div>
+                      <div class="notes-controls">
+                          <button id="new-note" class="control-btn primary">New Note</button>
+                          <button id="export-notes" class="control-btn export" disabled>Export</button>
+                          <button id="clear-notes" class="control-btn danger">Clear All</button>
+                      </div>
                 </div>
                 <div class="notes-container">
                     <div class="notes-list" id="notesList">
@@ -123,44 +123,45 @@
                 <button id="cancelExport" class="btn btn-secondary">Cancel</button>
                 <button id="confirmExport" class="btn btn-primary">Export</button>
             </div>
-        </div>
-    </div>
+          </div>
+      </div>
 
-    <!-- Notes Export Modal -->
-    <div id="notesExportModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Export Notes</h3>
-                <button id="closeNotesModal" class="close-btn">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="notesFileName">File Name:</label>
-                    <input type="text" id="notesFileName" placeholder="Enter file name">
-                </div>
-                <div class="form-group">
-                    <label for="notesFileFormat">Format:</label>
-                    <select id="notesFileFormat">
-                        <option value="json">JSON (Complete Data)</option>
-                        <option value="txt">TXT (Plain Text)</option>
-                        <option value="md">Markdown</option>
-                    </select>
-                </div>
-                <div class="file-preview">
-                    <span id="notesFilePreview">notes_2024-01-15_14-30-25.json</span>
-                </div>
-                <div class="export-preview">
-                    <h4>Preview:</h4>
-                    <div id="notesPreview" class="preview-content"></div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="cancelNotesExport" class="btn btn-secondary">Cancel</button>
-                <button id="confirmNotesExport" class="btn btn-primary">Export</button>
-            </div>
-        </div>
-    </div>
-
-    <script src="script.js"></script>
+      <!-- Notes Export Modal -->
+      <div id="notesExportModal" class="modal hidden">
+          <div class="modal-content">
+              <div class="modal-header">
+                  <h3>Export Notes</h3>
+                  <button id="closeNotesModal" class="close-btn">&times;</button>
+              </div>
+              <div class="modal-body">
+                  <div class="form-group">
+                      <label for="notesFileName">File Name:</label>
+                      <input type="text" id="notesFileName" placeholder="Enter file name">
+                  </div>
+                  <div class="form-group">
+                      <label for="notesFileFormat">Format:</label>
+                      <select id="notesFileFormat">
+                          <option value="txt">TXT (Plain Text)</option>
+                          <option value="md">Markdown</option>
+                          <option value="json">JSON (Complete Data)</option>
+                          <option value="csv">CSV (Spreadsheet)</option>
+                      </select>
+                  </div>
+                  <div class="file-preview">
+                      <span id="notesFilePreview">notes_2024-01-15_14-30-25.txt</span>
+                  </div>
+                  <div class="export-preview">
+                      <h4>Preview:</h4>
+                      <div id="notesPreview" class="preview-content"></div>
+                  </div>
+              </div>
+              <div class="modal-footer">
+                  <button id="cancelNotesExport" class="btn btn-secondary">Cancel</button>
+                  <button id="confirmNotesExport" class="btn btn-primary">Export</button>
+              </div>
+          </div>
+      </div>
+  
+      <script src="script.js"></script>
 </body>
 </html>

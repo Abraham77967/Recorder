@@ -72,11 +72,11 @@ class TimerAndRecorder {
         
         // Notes export modal elements
         this.notesExportModal = document.getElementById('notesExportModal');
-        this.closeNotesModalBtn = document.getElementById('closeNotesModal');
-        this.notesFileName = document.getElementById('notesFileName');
-        this.notesFileFormat = document.getElementById('notesFileFormat');
+        this.notesFileNameInput = document.getElementById('notesFileName');
+        this.notesFileFormatSelect = document.getElementById('notesFileFormat');
         this.notesFilePreview = document.getElementById('notesFilePreview');
         this.notesPreview = document.getElementById('notesPreview');
+        this.closeNotesModalBtn = document.getElementById('closeNotesModal');
         this.cancelNotesExportBtn = document.getElementById('cancelNotesExport');
         this.confirmNotesExportBtn = document.getElementById('confirmNotesExport');
     }
@@ -109,17 +109,24 @@ class TimerAndRecorder {
         
         // Notes event listeners
         this.newNoteBtn.addEventListener('click', () => this.createNewNote());
-        this.exportNotesBtn.addEventListener('click', () => this.openNotesExportModal());
+        this.exportNotesBtn.addEventListener('click', () => this.showNotesExportModal());
         this.clearNotesBtn.addEventListener('click', () => this.clearAllNotes());
         this.saveNoteBtn.addEventListener('click', () => this.saveNote());
         this.cancelNoteBtn.addEventListener('click', () => this.cancelNote());
         
         // Notes export modal event listeners
-        this.closeNotesModalBtn.addEventListener('click', () => this.closeNotesExportModal());
-        this.cancelNotesExportBtn.addEventListener('click', () => this.closeNotesExportModal());
+        this.closeNotesModalBtn.addEventListener('click', () => this.hideNotesExportModal());
+        this.cancelNotesExportBtn.addEventListener('click', () => this.hideNotesExportModal());
         this.confirmNotesExportBtn.addEventListener('click', () => this.exportNotes());
-        this.notesFileName.addEventListener('input', () => this.updateNotesFilePreview());
-        this.notesFileFormat.addEventListener('change', () => this.updateNotesFilePreview());
+        this.notesFileNameInput.addEventListener('input', () => this.updateNotesFilePreview());
+        this.notesFileFormatSelect.addEventListener('change', () => this.updateNotesFilePreview());
+        
+        // Close notes modal when clicking outside
+        this.notesExportModal.addEventListener('click', (e) => {
+            if (e.target === this.notesExportModal) {
+                this.hideNotesExportModal();
+            }
+        });
     }
     
     // Timer functionality
@@ -476,8 +483,6 @@ class TimerAndRecorder {
         const title = this.noteTitle.value.trim();
         const content = this.noteContent.value.trim();
         
-        console.log('Saving note - Title:', title, 'Content:', content);
-        
         if (!title && !content) {
             this.showNotification('Please enter a title or content for the note.', 'error');
             return;
@@ -504,7 +509,6 @@ class TimerAndRecorder {
         }
         
         this.saveNotesToStorage();
-        console.log('After saving - Notes count:', this.notes.length);
         this.renderNotes();
         this.cancelNote();
         this.showNotification('Note saved successfully!', 'success');
@@ -542,11 +546,8 @@ class TimerAndRecorder {
     }
     
     renderNotes() {
-        // Enable/disable export button based on notes availability
-        console.log('Notes count:', this.notes.length);
-        console.log('Notes array:', this.notes);
+        // Update export button state
         this.exportNotesBtn.disabled = this.notes.length === 0;
-        console.log('Export button disabled:', this.exportNotesBtn.disabled);
         
         if (this.notes.length === 0) {
             this.notesList.innerHTML = `
@@ -583,8 +584,14 @@ class TimerAndRecorder {
         localStorage.setItem('notes', JSON.stringify(this.notes));
     }
     
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
     // Notes export functionality
-    openNotesExportModal() {
+    showNotesExportModal() {
         if (this.notes.length === 0) {
             this.showNotification('No notes to export.', 'error');
             return;
@@ -592,114 +599,146 @@ class TimerAndRecorder {
         
         // Generate default filename
         const now = new Date();
-        const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-');
-        this.notesFileName.value = `notes_${timestamp}`;
+        const timestamp = now.toISOString().slice(0, 19).replace(/[:-]/g, '-').replace('T', '_');
+        this.notesFileNameInput.value = `notes_${timestamp}`;
         
         this.updateNotesFilePreview();
         this.notesExportModal.classList.remove('hidden');
     }
     
-    closeNotesExportModal() {
+    hideNotesExportModal() {
         this.notesExportModal.classList.add('hidden');
     }
     
     updateNotesFilePreview() {
-        const fileName = this.notesFileName.value || 'notes';
-        const format = this.notesFileFormat.value;
-        const extension = format === 'json' ? 'json' : format === 'md' ? 'md' : 'txt';
-        this.notesFilePreview.textContent = `${fileName}.${extension}`;
+        const fileName = this.notesFileNameInput.value.trim() || 'notes';
+        const format = this.notesFileFormatSelect.value;
+        const extension = format === 'txt' ? 'txt' : 
+                        format === 'md' ? 'md' : 
+                        format === 'json' ? 'json' : 'csv';
         
-        // Update preview content
+        this.notesFilePreview.textContent = `${fileName}.${extension}`;
         this.updateNotesPreview();
     }
     
     updateNotesPreview() {
-        const format = this.notesFileFormat.value;
+        const format = this.notesFileFormatSelect.value;
         let preview = '';
         
-        if (format === 'json') {
-            preview = JSON.stringify(this.notes, null, 2);
-        } else if (format === 'md') {
-            preview = this.generateMarkdownPreview();
-        } else {
-            preview = this.generateTextPreview();
+        switch (format) {
+            case 'txt':
+                preview = this.generateTextPreview();
+                break;
+            case 'md':
+                preview = this.generateMarkdownPreview();
+                break;
+            case 'json':
+                preview = this.generateJsonPreview();
+                break;
+            case 'csv':
+                preview = this.generateCsvPreview();
+                break;
         }
         
         this.notesPreview.textContent = preview;
     }
     
-    generateMarkdownPreview() {
-        let markdown = `# Notes Export\n\n`;
-        markdown += `*Exported on ${new Date().toLocaleString()}*\n\n`;
-        markdown += `---\n\n`;
-        
-        this.notes.forEach((note, index) => {
-            const date = new Date(note.updatedAt);
-            markdown += `## ${note.title}\n\n`;
-            markdown += `*Created: ${date.toLocaleString()}*\n\n`;
-            markdown += `${note.content}\n\n`;
-            if (index < this.notes.length - 1) markdown += `---\n\n`;
-        });
-        
-        return markdown;
-    }
-    
     generateTextPreview() {
-        let text = `NOTES EXPORT\n`;
-        text += `Exported on ${new Date().toLocaleString()}\n`;
-        text += `${'='.repeat(50)}\n\n`;
+        let text = `Notes Export - ${new Date().toLocaleDateString()}\n`;
+        text += '='.repeat(50) + '\n\n';
         
         this.notes.forEach((note, index) => {
-            const date = new Date(note.updatedAt);
-            text += `${note.title}\n`;
-            text += `${'-'.repeat(note.title.length)}\n`;
-            text += `Created: ${date.toLocaleString()}\n\n`;
-            text += `${note.content}\n\n`;
-            if (index < this.notes.length - 1) text += `${'='.repeat(50)}\n\n`;
+            text += `${index + 1}. ${note.title}\n`;
+            text += `   Created: ${new Date(note.createdAt).toLocaleString()}\n`;
+            if (note.updatedAt !== note.createdAt) {
+                text += `   Updated: ${new Date(note.updatedAt).toLocaleString()}\n`;
+            }
+            text += `   Content: ${note.content}\n\n`;
         });
         
         return text;
     }
     
+    generateMarkdownPreview() {
+        let markdown = `# Notes Export\n\n`;
+        markdown += `*Generated on ${new Date().toLocaleDateString()}*\n\n`;
+        
+        this.notes.forEach((note, index) => {
+            markdown += `## ${index + 1}. ${note.title}\n\n`;
+            markdown += `**Created:** ${new Date(note.createdAt).toLocaleString()}\n`;
+            if (note.updatedAt !== note.createdAt) {
+                markdown += `**Updated:** ${new Date(note.updatedAt).toLocaleString()}\n`;
+            }
+            markdown += `\n${note.content}\n\n---\n\n`;
+        });
+        
+        return markdown;
+    }
+    
+    generateJsonPreview() {
+        return JSON.stringify({
+            exportDate: new Date().toISOString(),
+            totalNotes: this.notes.length,
+            notes: this.notes
+        }, null, 2);
+    }
+    
+    generateCsvPreview() {
+        let csv = 'Title,Created,Updated,Content\n';
+        
+        this.notes.forEach(note => {
+            const title = `"${note.title.replace(/"/g, '""')}"`;
+            const created = new Date(note.createdAt).toLocaleString();
+            const updated = new Date(note.updatedAt).toLocaleString();
+            const content = `"${note.content.replace(/"/g, '""')}"`;
+            csv += `${title},${created},${updated},${content}\n`;
+        });
+        
+        return csv;
+    }
+    
     exportNotes() {
-        const fileName = this.notesFileName.value || 'notes';
-        const format = this.notesFileFormat.value;
-        const extension = format === 'json' ? 'json' : format === 'md' ? 'md' : 'txt';
-        const fullFileName = `${fileName}.${extension}`;
+        const fileName = this.notesFileNameInput.value.trim() || 'notes';
+        const format = this.notesFileFormatSelect.value;
+        const extension = format === 'txt' ? 'txt' : 
+                        format === 'md' ? 'md' : 
+                        format === 'json' ? 'json' : 'csv';
         
         let content = '';
         let mimeType = '';
         
-        if (format === 'json') {
-            content = JSON.stringify(this.notes, null, 2);
-            mimeType = 'application/json';
-        } else if (format === 'md') {
-            content = this.generateMarkdownPreview();
-            mimeType = 'text/markdown';
-        } else {
-            content = this.generateTextPreview();
-            mimeType = 'text/plain';
+        switch (format) {
+            case 'txt':
+                content = this.generateTextPreview();
+                mimeType = 'text/plain';
+                break;
+            case 'md':
+                content = this.generateMarkdownPreview();
+                mimeType = 'text/markdown';
+                break;
+            case 'json':
+                content = this.generateJsonPreview();
+                mimeType = 'application/json';
+                break;
+            case 'csv':
+                content = this.generateCsvPreview();
+                mimeType = 'text/csv';
+                break;
         }
         
-        // Create and download file
         const blob = new Blob([content], { type: mimeType });
         const url = URL.createObjectURL(blob);
+        
         const a = document.createElement('a');
         a.href = url;
-        a.download = fullFileName;
+        a.download = `${fileName}.${extension}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
-        this.closeNotesExportModal();
-        this.showNotification(`Notes exported as ${fullFileName}`, 'success');
-    }
-    
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        this.hideNotesExportModal();
+        this.showNotification(`Notes exported as ${extension.toUpperCase()} successfully!`, 'success');
     }
 }
 
