@@ -19,9 +19,14 @@ class TimerAndRecorder {
         this.canvas = null;
         this.canvasContext = null;
         
+        // Notes functionality
+        this.notes = JSON.parse(localStorage.getItem('notes')) || [];
+        this.currentNoteId = null;
+        
         this.initializeElements();
         this.setupEventListeners();
         this.initializeAudioVisualizer();
+        this.initializeNotes();
     }
     
     initializeElements() {
@@ -53,6 +58,27 @@ class TimerAndRecorder {
         this.closeModalBtn = document.getElementById('closeModal');
         this.cancelExportBtn = document.getElementById('cancelExport');
         this.confirmExportBtn = document.getElementById('confirmExport');
+        
+        // Notes elements
+        this.notesList = document.getElementById('notesList');
+        this.noteEditor = document.getElementById('noteEditor');
+        this.noteTitle = document.getElementById('noteTitle');
+        this.noteContent = document.getElementById('noteContent');
+        this.newNoteBtn = document.getElementById('new-note');
+        this.exportNotesBtn = document.getElementById('export-notes');
+        this.clearNotesBtn = document.getElementById('clear-notes');
+        this.saveNoteBtn = document.getElementById('save-note');
+        this.cancelNoteBtn = document.getElementById('cancel-note');
+        
+        // Notes export modal elements
+        this.notesExportModal = document.getElementById('notesExportModal');
+        this.closeNotesModalBtn = document.getElementById('closeNotesModal');
+        this.notesFileName = document.getElementById('notesFileName');
+        this.notesFileFormat = document.getElementById('notesFileFormat');
+        this.notesFilePreview = document.getElementById('notesFilePreview');
+        this.notesPreview = document.getElementById('notesPreview');
+        this.cancelNotesExportBtn = document.getElementById('cancelNotesExport');
+        this.confirmNotesExportBtn = document.getElementById('confirmNotesExport');
     }
     
     setupEventListeners() {
@@ -80,6 +106,20 @@ class TimerAndRecorder {
                 this.hideExportModal();
             }
         });
+        
+        // Notes event listeners
+        this.newNoteBtn.addEventListener('click', () => this.createNewNote());
+        this.exportNotesBtn.addEventListener('click', () => this.openNotesExportModal());
+        this.clearNotesBtn.addEventListener('click', () => this.clearAllNotes());
+        this.saveNoteBtn.addEventListener('click', () => this.saveNote());
+        this.cancelNoteBtn.addEventListener('click', () => this.cancelNote());
+        
+        // Notes export modal event listeners
+        this.closeNotesModalBtn.addEventListener('click', () => this.closeNotesExportModal());
+        this.cancelNotesExportBtn.addEventListener('click', () => this.closeNotesExportModal());
+        this.confirmNotesExportBtn.addEventListener('click', () => this.exportNotes());
+        this.notesFileName.addEventListener('input', () => this.updateNotesFilePreview());
+        this.notesFileFormat.addEventListener('change', () => this.updateNotesFilePreview());
     }
     
     // Timer functionality
@@ -405,9 +445,259 @@ class TimerAndRecorder {
             }, 300);
         }, 3000);
     }
+    
+    // Notes functionality
+    initializeNotes() {
+        this.renderNotes();
+    }
+    
+    createNewNote() {
+        this.currentNoteId = null;
+        this.noteTitle.value = '';
+        this.noteContent.value = '';
+        this.noteEditor.classList.remove('hidden');
+        this.notesList.classList.add('hidden');
+        this.noteTitle.focus();
+    }
+    
+    editNote(noteId) {
+        const note = this.notes.find(n => n.id === noteId);
+        if (note) {
+            this.currentNoteId = noteId;
+            this.noteTitle.value = note.title;
+            this.noteContent.value = note.content;
+            this.noteEditor.classList.remove('hidden');
+            this.notesList.classList.add('hidden');
+            this.noteTitle.focus();
+        }
+    }
+    
+    saveNote() {
+        const title = this.noteTitle.value.trim();
+        const content = this.noteContent.value.trim();
+        
+        if (!title && !content) {
+            this.showNotification('Please enter a title or content for the note.', 'error');
+            return;
+        }
+        
+        const now = new Date();
+        const noteData = {
+            id: this.currentNoteId || Date.now().toString(),
+            title: title || 'Untitled Note',
+            content: content,
+            createdAt: this.currentNoteId ? this.notes.find(n => n.id === this.currentNoteId).createdAt : now.toISOString(),
+            updatedAt: now.toISOString()
+        };
+        
+        if (this.currentNoteId) {
+            // Update existing note
+            const index = this.notes.findIndex(n => n.id === this.currentNoteId);
+            if (index !== -1) {
+                this.notes[index] = noteData;
+            }
+        } else {
+            // Add new note
+            this.notes.unshift(noteData);
+        }
+        
+        this.saveNotesToStorage();
+        this.renderNotes();
+        this.cancelNote();
+        this.showNotification('Note saved successfully!', 'success');
+    }
+    
+    deleteNote(noteId) {
+        if (confirm('Are you sure you want to delete this note?')) {
+            this.notes = this.notes.filter(n => n.id !== noteId);
+            this.saveNotesToStorage();
+            this.renderNotes();
+            this.showNotification('Note deleted successfully!', 'success');
+        }
+    }
+    
+    clearAllNotes() {
+        if (this.notes.length === 0) {
+            this.showNotification('No notes to clear.', 'error');
+            return;
+        }
+        
+        if (confirm('Are you sure you want to delete all notes? This action cannot be undone.')) {
+            this.notes = [];
+            this.saveNotesToStorage();
+            this.renderNotes();
+            this.showNotification('All notes cleared successfully!', 'success');
+        }
+    }
+    
+    cancelNote() {
+        this.noteEditor.classList.add('hidden');
+        this.notesList.classList.remove('hidden');
+        this.currentNoteId = null;
+        this.noteTitle.value = '';
+        this.noteContent.value = '';
+    }
+    
+    renderNotes() {
+        // Enable/disable export button based on notes availability
+        this.exportNotesBtn.disabled = this.notes.length === 0;
+        
+        if (this.notes.length === 0) {
+            this.notesList.innerHTML = `
+                <div class="empty-notes">
+                    <div class="empty-notes-icon">📝</div>
+                    <div class="empty-notes-text">No notes yet</div>
+                    <div class="empty-notes-subtext">Click "New Note" to get started</div>
+                </div>
+            `;
+            return;
+        }
+        
+        this.notesList.innerHTML = this.notes.map(note => {
+            const date = new Date(note.updatedAt);
+            const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            return `
+                <div class="note-item" onclick="app.editNote('${note.id}')">
+                    <div class="note-header">
+                        <h3 class="note-title">${this.escapeHtml(note.title)}</h3>
+                        <span class="note-date">${formattedDate}</span>
+                    </div>
+                    <p class="note-content">${this.escapeHtml(note.content)}</p>
+                    <div class="note-actions">
+                        <button class="note-action-btn" onclick="event.stopPropagation(); app.editNote('${note.id}')">Edit</button>
+                        <button class="note-action-btn" onclick="event.stopPropagation(); app.deleteNote('${note.id}')">Delete</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    saveNotesToStorage() {
+        localStorage.setItem('notes', JSON.stringify(this.notes));
+    }
+    
+    // Notes export functionality
+    openNotesExportModal() {
+        if (this.notes.length === 0) {
+            this.showNotification('No notes to export.', 'error');
+            return;
+        }
+        
+        // Generate default filename
+        const now = new Date();
+        const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-');
+        this.notesFileName.value = `notes_${timestamp}`;
+        
+        this.updateNotesFilePreview();
+        this.notesExportModal.classList.remove('hidden');
+    }
+    
+    closeNotesExportModal() {
+        this.notesExportModal.classList.add('hidden');
+    }
+    
+    updateNotesFilePreview() {
+        const fileName = this.notesFileName.value || 'notes';
+        const format = this.notesFileFormat.value;
+        const extension = format === 'json' ? 'json' : format === 'md' ? 'md' : 'txt';
+        this.notesFilePreview.textContent = `${fileName}.${extension}`;
+        
+        // Update preview content
+        this.updateNotesPreview();
+    }
+    
+    updateNotesPreview() {
+        const format = this.notesFileFormat.value;
+        let preview = '';
+        
+        if (format === 'json') {
+            preview = JSON.stringify(this.notes, null, 2);
+        } else if (format === 'md') {
+            preview = this.generateMarkdownPreview();
+        } else {
+            preview = this.generateTextPreview();
+        }
+        
+        this.notesPreview.textContent = preview;
+    }
+    
+    generateMarkdownPreview() {
+        let markdown = `# Notes Export\n\n`;
+        markdown += `*Exported on ${new Date().toLocaleString()}*\n\n`;
+        markdown += `---\n\n`;
+        
+        this.notes.forEach((note, index) => {
+            const date = new Date(note.updatedAt);
+            markdown += `## ${note.title}\n\n`;
+            markdown += `*Created: ${date.toLocaleString()}*\n\n`;
+            markdown += `${note.content}\n\n`;
+            if (index < this.notes.length - 1) markdown += `---\n\n`;
+        });
+        
+        return markdown;
+    }
+    
+    generateTextPreview() {
+        let text = `NOTES EXPORT\n`;
+        text += `Exported on ${new Date().toLocaleString()}\n`;
+        text += `${'='.repeat(50)}\n\n`;
+        
+        this.notes.forEach((note, index) => {
+            const date = new Date(note.updatedAt);
+            text += `${note.title}\n`;
+            text += `${'-'.repeat(note.title.length)}\n`;
+            text += `Created: ${date.toLocaleString()}\n\n`;
+            text += `${note.content}\n\n`;
+            if (index < this.notes.length - 1) text += `${'='.repeat(50)}\n\n`;
+        });
+        
+        return text;
+    }
+    
+    exportNotes() {
+        const fileName = this.notesFileName.value || 'notes';
+        const format = this.notesFileFormat.value;
+        const extension = format === 'json' ? 'json' : format === 'md' ? 'md' : 'txt';
+        const fullFileName = `${fileName}.${extension}`;
+        
+        let content = '';
+        let mimeType = '';
+        
+        if (format === 'json') {
+            content = JSON.stringify(this.notes, null, 2);
+            mimeType = 'application/json';
+        } else if (format === 'md') {
+            content = this.generateMarkdownPreview();
+            mimeType = 'text/markdown';
+        } else {
+            content = this.generateTextPreview();
+            mimeType = 'text/plain';
+        }
+        
+        // Create and download file
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fullFileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        this.closeNotesExportModal();
+        this.showNotification(`Notes exported as ${fullFileName}`, 'success');
+    }
+    
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 }
 
 // Initialize the application when the page loads
 document.addEventListener('DOMContentLoaded', () => {
-    new TimerAndRecorder();
+    window.app = new TimerAndRecorder();
 });

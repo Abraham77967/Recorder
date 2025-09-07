@@ -8,46 +8,89 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
+    <!-- Floating animated elements -->
+    <div class="floating-elements">
+        <div class="floating-circle circle-1"></div>
+        <div class="floating-circle circle-2"></div>
+        <div class="floating-circle circle-3"></div>
+        <div class="floating-triangle triangle-1"></div>
+        <div class="floating-triangle triangle-2"></div>
+        <div class="floating-square square-1"></div>
+    </div>
+    
     <div class="app">
-        <!-- Timer Card -->
-        <div class="card timer-card">
-            <div class="card-header">
-                <h2>Timer</h2>
-                <div class="timer-display">
-                    <span id="minutes">05</span>:<span id="seconds">00</span>
+        <div class="main-content">
+            <!-- Timer Card -->
+            <div class="card timer-card">
+                <div class="card-header">
+                    <h2>Timer</h2>
+                    <div class="timer-display">
+                        <span id="minutes">05</span>:<span id="seconds">00</span>
+                    </div>
+                </div>
+                <div class="progress-container">
+                    <div id="progress" class="progress"></div>
+                </div>
+                <div class="controls">
+                    <button id="start-timer" class="control-btn primary">Start</button>
+                    <button id="pause-timer" class="control-btn secondary" disabled>Pause</button>
+                    <button id="reset-timer" class="control-btn">Reset</button>
                 </div>
             </div>
-            <div class="progress-container">
-                <div id="progress" class="progress"></div>
-            </div>
-            <div class="controls">
-                <button id="start-timer" class="control-btn primary">Start</button>
-                <button id="pause-timer" class="control-btn secondary" disabled>Pause</button>
-                <button id="reset-timer" class="control-btn">Reset</button>
+
+            <!-- Recorder Card -->
+            <div class="card recorder-card">
+                <div class="card-header">
+                    <h2>Recorder</h2>
+                    <div class="recording-status">
+                        <div id="recording-indicator" class="status-dot hidden"></div>
+                        <span id="recording-text">Ready</span>
+                    </div>
+                </div>
+                <div class="visualizer">
+                    <canvas id="audioCanvas" width="300" height="60"></canvas>
+                </div>
+                <div class="controls">
+                    <button id="start-recording" class="control-btn primary">Record</button>
+                    <button id="stop-recording" class="control-btn danger" disabled>Stop</button>
+                    <button id="play-recording" class="control-btn" disabled>Play</button>
+                    <button id="export-recording" class="control-btn export" disabled>Export</button>
+                </div>
+                <div class="info">
+                    <span id="recording-duration">00:00</span>
+                    <span id="file-size">0 KB</span>
+                </div>
             </div>
         </div>
 
-        <!-- Recorder Card -->
-        <div class="card recorder-card">
-            <div class="card-header">
-                <h2>Recorder</h2>
-                <div class="recording-status">
-                    <div id="recording-indicator" class="status-dot hidden"></div>
-                    <span id="recording-text">Ready</span>
+        <!-- Notes Card - Right Sidebar -->
+        <div class="notes-sidebar">
+            <div class="card notes-card">
+                <div class="card-header">
+                    <h2>Notes</h2>
+                    <div class="notes-controls">
+                        <button id="new-note" class="control-btn primary">New Note</button>
+                        <button id="export-notes" class="control-btn export" disabled>Export</button>
+                        <button id="clear-notes" class="control-btn danger">Clear All</button>
+                    </div>
                 </div>
-            </div>
-            <div class="visualizer">
-                <canvas id="audioCanvas" width="300" height="60"></canvas>
-            </div>
-            <div class="controls">
-                <button id="start-recording" class="control-btn primary">Record</button>
-                <button id="stop-recording" class="control-btn danger" disabled>Stop</button>
-                <button id="play-recording" class="control-btn" disabled>Play</button>
-                <button id="export-recording" class="control-btn export" disabled>Export</button>
-            </div>
-            <div class="info">
-                <span id="recording-duration">00:00</span>
-                <span id="file-size">0 KB</span>
+                <div class="notes-container">
+                    <div class="notes-list" id="notesList">
+                        <!-- Notes will be dynamically added here -->
+                    </div>
+                    <div class="note-editor hidden" id="noteEditor">
+                        <div class="form-group">
+                            <input type="text" id="noteTitle" placeholder="Note title..." maxlength="50">
+                        </div>
+                        <div class="form-group">
+                            <textarea id="noteContent" placeholder="Write your note here..." rows="8"></textarea>
+                        </div>
+                        <div class="note-actions">
+                            <button id="save-note" class="control-btn primary">Save</button>
+                            <button id="cancel-note" class="control-btn">Cancel</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -79,6 +122,41 @@
             <div class="modal-footer">
                 <button id="cancelExport" class="btn btn-secondary">Cancel</button>
                 <button id="confirmExport" class="btn btn-primary">Export</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notes Export Modal -->
+    <div id="notesExportModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Export Notes</h3>
+                <button id="closeNotesModal" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="notesFileName">File Name:</label>
+                    <input type="text" id="notesFileName" placeholder="Enter file name">
+                </div>
+                <div class="form-group">
+                    <label for="notesFileFormat">Format:</label>
+                    <select id="notesFileFormat">
+                        <option value="json">JSON (Complete Data)</option>
+                        <option value="txt">TXT (Plain Text)</option>
+                        <option value="md">Markdown</option>
+                    </select>
+                </div>
+                <div class="file-preview">
+                    <span id="notesFilePreview">notes_2024-01-15_14-30-25.json</span>
+                </div>
+                <div class="export-preview">
+                    <h4>Preview:</h4>
+                    <div id="notesPreview" class="preview-content"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelNotesExport" class="btn btn-secondary">Cancel</button>
+                <button id="confirmNotesExport" class="btn btn-primary">Export</button>
             </div>
         </div>
     </div>
