@@ -476,6 +476,8 @@ class TimerAndRecorder {
         const title = this.noteTitle.value.trim();
         const content = this.noteContent.value.trim();
         
+        console.log('Saving note - Title:', title, 'Content:', content);
+        
         if (!title && !content) {
             this.showNotification('Please enter a title or content for the note.', 'error');
             return;
@@ -502,6 +504,7 @@ class TimerAndRecorder {
         }
         
         this.saveNotesToStorage();
+        console.log('After saving - Notes count:', this.notes.length);
         this.renderNotes();
         this.cancelNote();
         this.showNotification('Note saved successfully!', 'success');
@@ -540,7 +543,10 @@ class TimerAndRecorder {
     
     renderNotes() {
         // Enable/disable export button based on notes availability
+        console.log('Notes count:', this.notes.length);
+        console.log('Notes array:', this.notes);
         this.exportNotesBtn.disabled = this.notes.length === 0;
+        console.log('Export button disabled:', this.exportNotesBtn.disabled);
         
         if (this.notes.length === 0) {
             this.notesList.innerHTML = `
