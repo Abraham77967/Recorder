@@ -66,7 +66,6 @@ class TimerAndRecorder {
         this.noteContent = document.getElementById('noteContent');
         this.newNoteBtn = document.getElementById('new-note');
         this.exportNotesBtn = document.getElementById('export-notes');
-        this.clearNotesBtn = document.getElementById('clear-notes');
         this.saveNoteBtn = document.getElementById('save-note');
         this.cancelNoteBtn = document.getElementById('cancel-note');
         
@@ -110,18 +109,20 @@ class TimerAndRecorder {
         // Notes event listeners
         this.newNoteBtn.addEventListener('click', () => this.createNewNote());
         this.exportNotesBtn.addEventListener('click', () => this.showNotesExportModal());
-        this.clearNotesBtn.addEventListener('click', () => this.clearAllNotes());
         this.saveNoteBtn.addEventListener('click', () => this.saveNote());
         this.cancelNoteBtn.addEventListener('click', () => this.cancelNote());
         
         // Update export button state when typing in note fields
-        this.noteTitle.addEventListener('input', () => this.updateExportButtonState());
+        this.noteTitle.addEventListener('input', () => {
+            this.updateExportButtonState();
+            this.updateNotesFilePreview();
+        });
         this.noteContent.addEventListener('input', () => this.updateExportButtonState());
         
         // Notes export modal event listeners
         this.closeNotesModalBtn.addEventListener('click', () => this.hideNotesExportModal());
         this.cancelNotesExportBtn.addEventListener('click', () => this.hideNotesExportModal());
-        this.confirmNotesExportBtn.addEventListener('click', () => this.exportNotes());
+        this.confirmNotesExportBtn.addEventListener('click', async () => await this.exportNotes());
         this.notesFileNameInput.addEventListener('input', () => this.updateNotesFilePreview());
         this.notesFileFormatSelect.addEventListener('change', () => this.updateNotesFilePreview());
         
@@ -460,6 +461,8 @@ class TimerAndRecorder {
     // Notes functionality
     initializeNotes() {
         this.renderNotes();
+        // Show note editor directly instead of empty state
+        this.createNewNote();
     }
     
     createNewNote() {
@@ -527,19 +530,6 @@ class TimerAndRecorder {
         }
     }
     
-    clearAllNotes() {
-        if (this.notes.length === 0) {
-            this.showNotification('No notes to clear.', 'error');
-            return;
-        }
-        
-        if (confirm('Are you sure you want to delete all notes? This action cannot be undone.')) {
-            this.notes = [];
-            this.saveNotesToStorage();
-            this.renderNotes();
-            this.showNotification('All notes cleared successfully!', 'success');
-        }
-    }
     
     cancelNote() {
         this.noteEditor.classList.add('hidden');
@@ -554,13 +544,7 @@ class TimerAndRecorder {
         this.updateExportButtonState();
         
         if (this.notes.length === 0) {
-            this.notesList.innerHTML = `
-                <div class="empty-notes">
-                    <div class="empty-notes-icon">📝</div>
-                    <div class="empty-notes-text">No notes yet</div>
-                    <div class="empty-notes-subtext">Click "New Note" to get started</div>
-                </div>
-            `;
+            this.notesList.innerHTML = '';
             return;
         }
         
@@ -613,10 +597,16 @@ class TimerAndRecorder {
             return;
         }
         
-        // Generate default filename
-        const now = new Date();
-        const timestamp = now.toISOString().slice(0, 19).replace(/[:-]/g, '-').replace('T', '_');
-        this.notesFileNameInput.value = `notes_${timestamp}`;
+        // Check if docx library is available for Word export
+        if (typeof docx === 'undefined') {
+            console.warn('docx library not loaded - Word export may not work');
+        }
+        
+        // Set default format to Word document
+        this.notesFileFormatSelect.value = 'docx';
+        
+        // Clear filename input to use auto-generated name based on note title
+        this.notesFileNameInput.value = '';
         
         this.updateNotesFilePreview();
         this.notesExportModal.classList.remove('hidden');
@@ -627,11 +617,29 @@ class TimerAndRecorder {
     }
     
     updateNotesFilePreview() {
-        const fileName = this.notesFileNameInput.value.trim() || 'notes';
+        let fileName = this.notesFileNameInput.value.trim();
         const format = this.notesFileFormatSelect.value;
         const extension = format === 'txt' ? 'txt' : 
                         format === 'md' ? 'md' : 
-                        format === 'json' ? 'json' : 'csv';
+                        format === 'json' ? 'json' : 
+                        format === 'csv' ? 'csv' : 'docx';
+        
+        // For Word documents, use note title + date/time if no custom name provided
+        if (format === 'docx' && !fileName) {
+            const noteTitle = this.noteTitle.value.trim();
+            const now = new Date();
+            const dateTime = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            
+            if (noteTitle) {
+                // Clean the title for filename (remove invalid characters)
+                const cleanTitle = noteTitle.replace(/[<>:"/\\|?*]/g, '').substring(0, 50);
+                fileName = `${cleanTitle}_${dateTime}`;
+            } else {
+                fileName = `Notes_${dateTime}`;
+            }
+        } else if (!fileName) {
+            fileName = 'notes';
+        }
         
         this.notesFilePreview.textContent = `${fileName}.${extension}`;
         this.updateNotesPreview();
@@ -653,6 +661,9 @@ class TimerAndRecorder {
                 break;
             case 'csv':
                 preview = this.generateCsvPreview();
+                break;
+            case 'docx':
+                preview = this.generateWordPreview();
                 break;
         }
         
@@ -762,36 +773,305 @@ class TimerAndRecorder {
         return csv;
     }
     
-    exportNotes() {
-        const fileName = this.notesFileNameInput.value.trim() || 'notes';
+    generateWordPreview() {
+        // Include unsaved content in notes array
+        const allNotes = [...this.notes];
+        const unsavedTitle = this.noteTitle.value.trim();
+        const unsavedContent = this.noteContent.value.trim();
+        
+        if (unsavedTitle || unsavedContent) {
+            allNotes.push({
+                id: 'unsaved',
+                title: unsavedTitle || 'Untitled Note',
+                content: unsavedContent,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                isUnsaved: true
+            });
+        }
+        
+        let preview = '📄 WORD DOCUMENT PREVIEW\n';
+        preview += '='.repeat(50) + '\n\n';
+        preview += `Export Date: ${new Date().toLocaleString()}\n`;
+        preview += `Total Notes: ${allNotes.length}\n\n`;
+        
+        allNotes.forEach((note, index) => {
+            const isUnsaved = note.isUnsaved;
+            const title = isUnsaved ? `${note.title} (Unsaved)` : note.title;
+            
+            preview += `${index + 1}. ${title}\n`;
+            preview += '-'.repeat(30) + '\n';
+            preview += `Created: ${new Date(note.createdAt).toLocaleString()}\n`;
+            preview += `Updated: ${new Date(note.updatedAt).toLocaleString()}\n\n`;
+            preview += `${note.content || 'No content'}\n\n`;
+        });
+        
+        preview += '\n' + '='.repeat(50) + '\n';
+        preview += 'Note: This is a preview. The actual Word document will have proper formatting, fonts, and styling.';
+        
+        return preview;
+    }
+    
+    async generateWordDocument() {
+        try {
+            // Check if docx library is loaded
+            if (typeof docx === 'undefined') {
+                throw new Error('docx library not loaded. Please refresh the page and try again.');
+            }
+            
+            console.log('docx library loaded:', typeof docx);
+            console.log('docx object:', docx);
+            
+            const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
+        
+        // Include unsaved content in notes array
+        const allNotes = [...this.notes];
+        const unsavedTitle = this.noteTitle.value.trim();
+        const unsavedContent = this.noteContent.value.trim();
+        
+        if (unsavedTitle || unsavedContent) {
+            allNotes.push({
+                id: 'unsaved',
+                title: unsavedTitle || 'Untitled Note',
+                content: unsavedContent,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                isUnsaved: true
+            });
+        }
+        
+        const children = [
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: "Notes Export",
+                        bold: true,
+                        size: 32
+                    })
+                ],
+                heading: HeadingLevel.TITLE,
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 400 }
+            }),
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: `Export Date: ${new Date().toLocaleString()}`,
+                        italics: true,
+                        size: 20
+                    })
+                ],
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 400 }
+            }),
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: `Total Notes: ${allNotes.length}`,
+                        size: 20
+                    })
+                ],
+                spacing: { after: 600 }
+            })
+        ];
+        
+        // Add each note
+        allNotes.forEach((note, index) => {
+            const isUnsaved = note.isUnsaved;
+            const title = isUnsaved ? `${note.title} (Unsaved)` : note.title;
+            
+            children.push(
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: `${index + 1}. ${title}`,
+                            bold: true,
+                            size: 24
+                        })
+                    ],
+                    heading: HeadingLevel.HEADING_1,
+                    spacing: { before: 400, after: 200 }
+                }),
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: `Created: ${new Date(note.createdAt).toLocaleString()}`,
+                            size: 18,
+                            color: "666666"
+                        })
+                    ],
+                    spacing: { after: 100 }
+                }),
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: `Updated: ${new Date(note.updatedAt).toLocaleString()}`,
+                            size: 18,
+                            color: "666666"
+                        })
+                    ],
+                    spacing: { after: 200 }
+                }),
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: note.content || "No content",
+                            size: 20
+                        })
+                    ],
+                    spacing: { after: 400 }
+                })
+            );
+        });
+        
+        const doc = new Document({
+            sections: [{
+                properties: {},
+                children: children
+            }]
+        });
+        
+        return await Packer.toBlob(doc);
+        } catch (error) {
+            console.error('Error generating Word document:', error);
+            this.showNotification('Error generating Word document. Creating HTML fallback...', 'warning');
+            
+            // Fallback: Create HTML that can be opened in Word
+            return this.generateWordFallback();
+        }
+    }
+    
+    generateWordFallback() {
+        // Include unsaved content in notes array
+        const allNotes = [...this.notes];
+        const unsavedTitle = this.noteTitle.value.trim();
+        const unsavedContent = this.noteContent.value.trim();
+        
+        if (unsavedTitle || unsavedContent) {
+            allNotes.push({
+                id: 'unsaved',
+                title: unsavedTitle || 'Untitled Note',
+                content: unsavedContent,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                isUnsaved: true
+            });
+        }
+        
+        let html = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" 
+      xmlns:w="urn:schemas-microsoft-com:office:word" 
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+    <meta charset="utf-8">
+    <title>Notes Export</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        h1 { text-align: center; color: #333; }
+        h2 { color: #666; border-bottom: 2px solid #ddd; padding-bottom: 5px; }
+        .note { margin-bottom: 30px; }
+        .timestamp { color: #888; font-size: 14px; }
+        .content { margin-top: 10px; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <h1>Notes Export</h1>
+    <p style="text-align: center; color: #666;">
+        Export Date: ${new Date().toLocaleString()}<br>
+        Total Notes: ${allNotes.length}
+    </p>
+    <hr style="margin: 30px 0;">`;
+        
+        allNotes.forEach((note, index) => {
+            const isUnsaved = note.isUnsaved;
+            const title = isUnsaved ? `${note.title} (Unsaved)` : note.title;
+            
+            html += `
+    <div class="note">
+        <h2>${index + 1}. ${this.escapeHtml(title)}</h2>
+        <div class="timestamp">
+            Created: ${new Date(note.createdAt).toLocaleString()}<br>
+            Updated: ${new Date(note.updatedAt).toLocaleString()}
+        </div>
+        <div class="content">${this.escapeHtml(note.content || 'No content').replace(/\n/g, '<br>')}</div>
+    </div>`;
+        });
+        
+        html += `
+</body>
+</html>`;
+        
+        return new Blob([html], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    }
+    
+    async exportNotes() {
+        let fileName = this.notesFileNameInput.value.trim();
         const format = this.notesFileFormatSelect.value;
         const extension = format === 'txt' ? 'txt' : 
                         format === 'md' ? 'md' : 
-                        format === 'json' ? 'json' : 'csv';
+                        format === 'json' ? 'json' : 
+                        format === 'csv' ? 'csv' : 'docx';
         
-        let content = '';
-        let mimeType = '';
-        
-        switch (format) {
-            case 'txt':
-                content = this.generateTextPreview();
-                mimeType = 'text/plain';
-                break;
-            case 'md':
-                content = this.generateMarkdownPreview();
-                mimeType = 'text/markdown';
-                break;
-            case 'json':
-                content = this.generateJsonPreview();
-                mimeType = 'application/json';
-                break;
-            case 'csv':
-                content = this.generateCsvPreview();
-                mimeType = 'text/csv';
-                break;
+        // For Word documents, use note title + date/time if no custom name provided
+        if (format === 'docx' && !fileName) {
+            const noteTitle = this.noteTitle.value.trim();
+            const now = new Date();
+            const dateTime = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            
+            if (noteTitle) {
+                // Clean the title for filename (remove invalid characters)
+                const cleanTitle = noteTitle.replace(/[<>:"/\\|?*]/g, '').substring(0, 50);
+                fileName = `${cleanTitle}_${dateTime}`;
+            } else {
+                fileName = `Notes_${dateTime}`;
+            }
+        } else if (!fileName) {
+            fileName = 'notes';
         }
         
-        const blob = new Blob([content], { type: mimeType });
+        let blob;
+        
+        if (format === 'docx') {
+            // Handle Word document export
+            console.log('Starting Word document generation...');
+            try {
+                blob = await this.generateWordDocument();
+                console.log('Word document generation result:', blob);
+                if (!blob) {
+                    this.showNotification('Failed to generate Word document. Please try again.', 'error');
+                    return;
+                }
+            } catch (error) {
+                console.error('Word document generation failed:', error);
+                this.showNotification('Word document generation failed. Please try again.', 'error');
+                return;
+            }
+        } else {
+            // Handle other formats
+            let content = '';
+            let mimeType = '';
+            
+            switch (format) {
+                case 'txt':
+                    content = this.generateTextPreview();
+                    mimeType = 'text/plain';
+                    break;
+                case 'md':
+                    content = this.generateMarkdownPreview();
+                    mimeType = 'text/markdown';
+                    break;
+                case 'json':
+                    content = this.generateJsonPreview();
+                    mimeType = 'application/json';
+                    break;
+                case 'csv':
+                    content = this.generateCsvPreview();
+                    mimeType = 'text/csv';
+                    break;
+            }
+            
+            blob = new Blob([content], { type: mimeType });
+        }
         const url = URL.createObjectURL(blob);
         
         const a = document.createElement('a');

@@ -3,9 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Timer & Recorder</title>
+    <title>RecordHub</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Monoton&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/docx@8.4.0/build/index.js"></script>
+    <script>
+        // Check if docx library loaded
+        window.addEventListener('load', function() {
+            console.log('docx library check:', typeof docx);
+            if (typeof docx !== 'undefined') {
+                console.log('docx library loaded successfully');
+            } else {
+                console.error('docx library failed to load');
+            }
+        });
+    </script>
 </head>
 <body>
     <!-- Floating animated elements -->
@@ -19,7 +32,11 @@
     </div>
     
     <div class="app">
-        <div class="main-content">
+        <header class="app-header">
+            <h1 class="app-title">RecordHub<br><span class="subtitle">Timer • Recorder • Notes</span></h1>
+        </header>
+        <div class="app-content">
+            <div class="main-content">
             <!-- Timer Card -->
             <div class="card timer-card">
                 <div class="card-header">
@@ -71,7 +88,6 @@
                       <div class="notes-controls">
                           <button id="new-note" class="control-btn primary">New Note</button>
                           <button id="export-notes" class="control-btn export" disabled>Export</button>
-                          <button id="clear-notes" class="control-btn danger">Clear All</button>
                       </div>
                 </div>
                 <div class="notes-container">
@@ -92,6 +108,7 @@
                     </div>
                 </div>
             </div>
+        </div>
         </div>
     </div>
 
@@ -145,6 +162,7 @@
                           <option value="md">Markdown</option>
                           <option value="json">JSON (Complete Data)</option>
                           <option value="csv">CSV (Spreadsheet)</option>
+                          <option value="docx" selected>Word Document (.docx)</option>
                       </select>
                   </div>
                   <div class="file-preview">
