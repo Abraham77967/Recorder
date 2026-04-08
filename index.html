@@ -8,6 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Monoton&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/docx@8.4.0/build/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
         // Check if docx library loaded
         window.addEventListener('load', function() {
@@ -41,8 +42,15 @@
             <div class="card timer-card">
                 <div class="card-header">
                     <h2>Timer</h2>
-                    <div class="timer-display">
-                        <span id="minutes">05</span>:<span id="seconds">00</span>
+                    <div id="timer-display-group" class="timer-display">
+                        <span id="minutes">10</span>:<span id="seconds">00</span>
+                    </div>
+                    <div id="timer-setup" class="timer-setup hidden">
+                        <input type="number" id="timer-input" min="1" max="999" placeholder="Min" class="timer-input">
+                        <div class="setup-actions">
+                            <button id="save-timer" class="control-btn primary">Save</button>
+                            <button id="cancel-timer" class="control-btn">Cancel</button>
+                        </div>
                     </div>
                 </div>
                 <div class="progress-container">
@@ -52,6 +60,7 @@
                     <button id="start-timer" class="control-btn primary">Start</button>
                     <button id="pause-timer" class="control-btn secondary" disabled>Pause</button>
                     <button id="reset-timer" class="control-btn">Reset</button>
+                    <button id="set-timer" class="control-btn">Modify</button>
                 </div>
             </div>
 
@@ -68,10 +77,9 @@
                     <canvas id="audioCanvas" width="300" height="60"></canvas>
                 </div>
                 <div class="controls">
-                    <button id="start-recording" class="control-btn primary">Record</button>
-                    <button id="stop-recording" class="control-btn danger" disabled>Stop</button>
-                    <button id="play-recording" class="control-btn" disabled>Play</button>
-                    <button id="export-recording" class="control-btn export" disabled>Export</button>
+                    <button id="start-recording" class="control-btn primary">Start Recording</button>
+                    <button id="stop-recording" class="control-btn secondary" disabled>Stop Recording</button>
+                    <button id="export-recording" class="control-btn" disabled>Export Recording</button>
                 </div>
                 <div class="info">
                     <span id="recording-duration">00:00</span>
@@ -80,8 +88,8 @@
             </div>
         </div>
 
-        <!-- Notes Card - Right Sidebar -->
-        <div class="notes-sidebar">
+        <!-- Notes Section - Full Width Bottom -->
+        <div class="notes-section">
             <div class="card notes-card">
                 <div class="card-header">
                     <h2>Notes</h2>
@@ -98,8 +106,16 @@
                         <div class="form-group">
                             <input type="text" id="noteTitle" placeholder="Note title..." maxlength="50">
                         </div>
+                        <div class="note-toolbar">
+                            <button type="button" id="btn-bullet" class="toolbar-btn" title="Bullet List">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                            </button>
+                            <button type="button" id="btn-bold" class="toolbar-btn" title="Bold">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path></svg>
+                            </button>
+                        </div>
                         <div class="form-group">
-                            <textarea id="noteContent" placeholder="Write your note here..." rows="8"></textarea>
+                            <div id="noteContent" class="rich-editor" contenteditable="true"></div>
                         </div>
                         <div class="note-actions">
                             <button id="save-note" class="control-btn primary">Save</button>
@@ -157,13 +173,10 @@
                   </div>
                   <div class="form-group">
                       <label for="notesFileFormat">Format:</label>
-                      <select id="notesFileFormat">
-                          <option value="txt">TXT (Plain Text)</option>
-                          <option value="md">Markdown</option>
-                          <option value="json">JSON (Complete Data)</option>
-                          <option value="csv">CSV (Spreadsheet)</option>
-                          <option value="docx" selected>Word Document (.docx)</option>
-                      </select>
+                        <select id="notesFileFormat">
+                            <option value="txt">Text File (.txt)</option>
+                            <option value="docx" selected>Word Document (.docx)</option>
+                        </select>
                   </div>
                   <div class="file-preview">
                       <span id="notesFilePreview">notes_2024-01-15_14-30-25.txt</span>

@@ -1,8 +1,9 @@
 class TimerAndRecorder {
     constructor() {
         this.timerInterval = null;
-        this.timeLeft = 5 * 60; // 5 minutes in seconds
-        this.totalTime = 5 * 60;
+        const savedTime = localStorage.getItem('timerDuration');
+        this.totalTime = savedTime ? parseInt(savedTime) : 10 * 60;
+        this.timeLeft = this.totalTime;
         this.isRunning = false;
         
         this.mediaRecorder = null;
@@ -27,6 +28,8 @@ class TimerAndRecorder {
         this.setupEventListeners();
         this.initializeAudioVisualizer();
         this.initializeNotes();
+        this.updateTimerDisplay();
+        this.updateProgressBar();
     }
     
     initializeElements() {
@@ -36,12 +39,17 @@ class TimerAndRecorder {
         this.startTimerBtn = document.getElementById('start-timer');
         this.pauseTimerBtn = document.getElementById('pause-timer');
         this.resetTimerBtn = document.getElementById('reset-timer');
+        this.setTimerBtn = document.getElementById('set-timer');
+        this.timerSetup = document.getElementById('timer-setup');
+        this.timerDisplayGroup = document.getElementById('timer-display-group');
+        this.timerInput = document.getElementById('timer-input');
+        this.saveTimerBtn = document.getElementById('save-timer');
+        this.cancelTimerBtn = document.getElementById('cancel-timer');
         this.progressBar = document.getElementById('progress');
         
         // Audio recording elements
         this.startRecordingBtn = document.getElementById('start-recording');
         this.stopRecordingBtn = document.getElementById('stop-recording');
-        this.playRecordingBtn = document.getElementById('play-recording');
         this.exportRecordingBtn = document.getElementById('export-recording');
         this.recordingIndicator = document.getElementById('recording-indicator');
         this.recordingText = document.getElementById('recording-text');
@@ -64,6 +72,8 @@ class TimerAndRecorder {
         this.noteEditor = document.getElementById('noteEditor');
         this.noteTitle = document.getElementById('noteTitle');
         this.noteContent = document.getElementById('noteContent');
+        this.btnBullet = document.getElementById('btn-bullet');
+        this.btnBold = document.getElementById('btn-bold');
         this.newNoteBtn = document.getElementById('new-note');
         this.exportNotesBtn = document.getElementById('export-notes');
         this.saveNoteBtn = document.getElementById('save-note');
@@ -85,11 +95,13 @@ class TimerAndRecorder {
         this.startTimerBtn.addEventListener('click', () => this.startTimer());
         this.pauseTimerBtn.addEventListener('click', () => this.pauseTimer());
         this.resetTimerBtn.addEventListener('click', () => this.resetTimer());
+        this.setTimerBtn.addEventListener('click', () => this.toggleTimerSetup());
+        this.saveTimerBtn.addEventListener('click', () => this.saveCustomTimer());
+        this.cancelTimerBtn.addEventListener('click', () => this.cancelTimerSetup());
         
         // Audio recording event listeners
         this.startRecordingBtn.addEventListener('click', () => this.startRecording());
         this.stopRecordingBtn.addEventListener('click', () => this.stopRecording());
-        this.playRecordingBtn.addEventListener('click', () => this.playRecording());
         this.exportRecordingBtn.addEventListener('click', () => this.showExportModal());
         
         // Export modal event listeners
@@ -112,12 +124,19 @@ class TimerAndRecorder {
         this.saveNoteBtn.addEventListener('click', () => this.saveNote());
         this.cancelNoteBtn.addEventListener('click', () => this.cancelNote());
         
+        // Rich text toolbar listeners
+        this.btnBullet.addEventListener('click', () => this.execCommand('insertUnorderedList'));
+        this.btnBold.addEventListener('click', () => this.execCommand('bold'));
+        
         // Update export button state when typing in note fields
         this.noteTitle.addEventListener('input', () => {
             this.updateExportButtonState();
             this.updateNotesFilePreview();
         });
         this.noteContent.addEventListener('input', () => this.updateExportButtonState());
+        this.noteContent.addEventListener('keyup', () => this.updateToolbarState());
+        this.noteContent.addEventListener('mouseup', () => this.updateToolbarState());
+        this.noteContent.addEventListener('click', () => this.updateToolbarState());
         
         // Notes export modal event listeners
         this.closeNotesModalBtn.addEventListener('click', () => this.hideNotesExportModal());
@@ -184,6 +203,37 @@ class TimerAndRecorder {
         this.progressBar.style.width = `${progress}%`;
     }
     
+    toggleTimerSetup() {
+        if (this.isRunning) {
+            this.pauseTimer();
+        }
+        this.timerDisplayGroup.classList.add('hidden');
+        this.timerSetup.classList.remove('hidden');
+        this.timerInput.value = Math.floor(this.totalTime / 60);
+        this.timerInput.focus();
+        this.setTimerBtn.disabled = true;
+    }
+    
+    saveCustomTimer() {
+        const minutes = parseInt(this.timerInput.value);
+        if (isNaN(minutes) || minutes < 1 || minutes > 999) {
+            this.showNotification('Please enter a valid duration (1-999 minutes).', 'error');
+            return;
+        }
+        
+        this.totalTime = minutes * 60;
+        localStorage.setItem('timerDuration', this.totalTime.toString());
+        this.resetTimer();
+        this.cancelTimerSetup();
+        this.showNotification(`Timer set to ${minutes} minutes.`, 'success');
+    }
+    
+    cancelTimerSetup() {
+        this.timerDisplayGroup.classList.remove('hidden');
+        this.timerSetup.classList.add('hidden');
+        this.setTimerBtn.disabled = false;
+    }
+    
     timerComplete() {
         this.isRunning = false;
         this.startTimerBtn.disabled = false;
@@ -194,7 +244,7 @@ class TimerAndRecorder {
         this.playNotificationSound();
         
         // Show alert
-        alert('Timer completed! 5 minutes have passed.');
+        alert('Timer completed!');
     }
     
     playNotificationSound() {
@@ -232,7 +282,6 @@ class TimerAndRecorder {
             this.mediaRecorder.onstop = () => {
                 this.audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
                 this.audioUrl = URL.createObjectURL(this.audioBlob);
-                this.playRecordingBtn.disabled = false;
                 this.updateFileSize();
             };
             
@@ -274,12 +323,6 @@ class TimerAndRecorder {
         }
     }
     
-    playRecording() {
-        if (this.audioUrl) {
-            const audio = new Audio(this.audioUrl);
-            audio.play();
-        }
-    }
     
     updateRecordingDuration() {
         if (this.recordingStartTime) {
@@ -465,10 +508,30 @@ class TimerAndRecorder {
         this.createNewNote();
     }
     
+    execCommand(command) {
+        document.execCommand(command, false, null);
+        this.noteContent.focus();
+        this.updateToolbarState();
+    }
+
+    updateToolbarState() {
+        if (document.queryCommandState('bold')) {
+            this.btnBold.classList.add('active');
+        } else {
+            this.btnBold.classList.remove('active');
+        }
+
+        if (document.queryCommandState('insertUnorderedList')) {
+            this.btnBullet.classList.add('active');
+        } else {
+            this.btnBullet.classList.remove('active');
+        }
+    }
+
     createNewNote() {
         this.currentNoteId = null;
         this.noteTitle.value = '';
-        this.noteContent.value = '';
+        this.noteContent.innerHTML = '';
         this.noteEditor.classList.remove('hidden');
         this.notesList.classList.add('hidden');
         this.noteTitle.focus();
@@ -479,7 +542,7 @@ class TimerAndRecorder {
         if (note) {
             this.currentNoteId = noteId;
             this.noteTitle.value = note.title;
-            this.noteContent.value = note.content;
+            this.noteContent.innerHTML = note.content;
             this.noteEditor.classList.remove('hidden');
             this.notesList.classList.add('hidden');
             this.noteTitle.focus();
@@ -488,9 +551,9 @@ class TimerAndRecorder {
     
     saveNote() {
         const title = this.noteTitle.value.trim();
-        const content = this.noteContent.value.trim();
+        const content = this.noteContent.innerHTML.trim();
         
-        if (!title && !content) {
+        if (!title && (!content || content === '<br>')) {
             this.showNotification('Please enter a title or content for the note.', 'error');
             return;
         }
@@ -536,7 +599,7 @@ class TimerAndRecorder {
         this.notesList.classList.remove('hidden');
         this.currentNoteId = null;
         this.noteTitle.value = '';
-        this.noteContent.value = '';
+        this.noteContent.innerHTML = '';
     }
     
     renderNotes() {
@@ -558,7 +621,7 @@ class TimerAndRecorder {
                         <h3 class="note-title">${this.escapeHtml(note.title)}</h3>
                         <span class="note-date">${formattedDate}</span>
                     </div>
-                    <p class="note-content">${this.escapeHtml(note.content)}</p>
+                    <p class="note-content">${this.escapeHtml(this.stripHtml(note.content))}</p>
                     <div class="note-actions">
                         <button class="note-action-btn" onclick="event.stopPropagation(); app.editNote('${note.id}')">Edit</button>
                         <button class="note-action-btn" onclick="event.stopPropagation(); app.deleteNote('${note.id}')">Delete</button>
@@ -571,7 +634,7 @@ class TimerAndRecorder {
     updateExportButtonState() {
         // Check if there are saved notes OR if user is typing in note fields
         const hasSavedNotes = this.notes.length > 0;
-        const hasUnsavedContent = this.noteTitle.value.trim() || this.noteContent.value.trim();
+        const hasUnsavedContent = this.noteTitle.value.trim() || this.stripHtml(this.noteContent.innerHTML).trim();
         
         this.exportNotesBtn.disabled = !hasSavedNotes && !hasUnsavedContent;
     }
@@ -585,12 +648,18 @@ class TimerAndRecorder {
         div.textContent = text;
         return div.innerHTML;
     }
+
+    stripHtml(html) {
+        const tmp = document.createElement('DIV');
+        tmp.innerHTML = html;
+        return tmp.textContent || tmp.innerText || '';
+    }
     
     // Notes export functionality
     showNotesExportModal() {
         // Check if there are saved notes OR unsaved content
         const hasSavedNotes = this.notes.length > 0;
-        const hasUnsavedContent = this.noteTitle.value.trim() || this.noteContent.value.trim();
+        const hasUnsavedContent = this.noteTitle.value.trim() || this.stripHtml(this.noteContent.innerHTML).trim();
         
         if (!hasSavedNotes && !hasUnsavedContent) {
             this.showNotification('No notes to export.', 'error');
@@ -602,7 +671,7 @@ class TimerAndRecorder {
             console.warn('docx library not loaded - Word export may not work');
         }
         
-        // Set default format to Word document
+        // Set default format to Word Document
         this.notesFileFormatSelect.value = 'docx';
         
         // Clear filename input to use auto-generated name based on note title
@@ -622,7 +691,8 @@ class TimerAndRecorder {
         const extension = format === 'txt' ? 'txt' : 
                         format === 'md' ? 'md' : 
                         format === 'json' ? 'json' : 
-                        format === 'csv' ? 'csv' : 'docx';
+                        format === 'csv' ? 'csv' : 
+                        format === 'pdf' ? 'pdf' : 'docx';
         
         // For Word documents, use note title + date/time if no custom name provided
         if (format === 'docx' && !fileName) {
@@ -650,18 +720,6 @@ class TimerAndRecorder {
         let preview = '';
         
         switch (format) {
-            case 'txt':
-                preview = this.generateTextPreview();
-                break;
-            case 'md':
-                preview = this.generateMarkdownPreview();
-                break;
-            case 'json':
-                preview = this.generateJsonPreview();
-                break;
-            case 'csv':
-                preview = this.generateCsvPreview();
-                break;
             case 'docx':
                 preview = this.generateWordPreview();
                 break;
@@ -686,7 +744,7 @@ class TimerAndRecorder {
         
         // Add unsaved content if exists
         const unsavedTitle = this.noteTitle.value.trim();
-        const unsavedContent = this.noteContent.value.trim();
+        const unsavedContent = this.stripHtml(this.noteContent.innerHTML).trim();
         if (unsavedTitle || unsavedContent) {
             const noteIndex = this.notes.length + 1;
             text += `${noteIndex}. ${unsavedTitle || 'Untitled Note'}\n`;
@@ -697,87 +755,13 @@ class TimerAndRecorder {
         return text;
     }
     
-    generateMarkdownPreview() {
-        let markdown = `# Notes Export\n\n`;
-        markdown += `*Generated on ${new Date().toLocaleDateString()}*\n\n`;
-        
-        // Add saved notes
-        this.notes.forEach((note, index) => {
-            markdown += `## ${index + 1}. ${note.title}\n\n`;
-            markdown += `**Created:** ${new Date(note.createdAt).toLocaleString()}\n`;
-            if (note.updatedAt !== note.createdAt) {
-                markdown += `**Updated:** ${new Date(note.updatedAt).toLocaleString()}\n`;
-            }
-            markdown += `\n${note.content}\n\n---\n\n`;
-        });
-        
-        // Add unsaved content if exists
-        const unsavedTitle = this.noteTitle.value.trim();
-        const unsavedContent = this.noteContent.value.trim();
-        if (unsavedTitle || unsavedContent) {
-            const noteIndex = this.notes.length + 1;
-            markdown += `## ${noteIndex}. ${unsavedTitle || 'Untitled Note'}\n\n`;
-            markdown += `**Created:** ${new Date().toLocaleString()} (Unsaved)\n`;
-            markdown += `\n${unsavedContent}\n\n---\n\n`;
-        }
-        
-        return markdown;
-    }
-    
-    generateJsonPreview() {
-        // Include unsaved content in notes array
-        const allNotes = [...this.notes];
-        const unsavedTitle = this.noteTitle.value.trim();
-        const unsavedContent = this.noteContent.value.trim();
-        
-        if (unsavedTitle || unsavedContent) {
-            allNotes.push({
-                id: 'unsaved',
-                title: unsavedTitle || 'Untitled Note',
-                content: unsavedContent,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                isUnsaved: true
-            });
-        }
-        
-        return JSON.stringify({
-            exportDate: new Date().toISOString(),
-            totalNotes: allNotes.length,
-            notes: allNotes
-        }, null, 2);
-    }
-    
-    generateCsvPreview() {
-        let csv = 'Title,Created,Updated,Content\n';
-        
-        // Add saved notes
-        this.notes.forEach(note => {
-            const title = `"${note.title.replace(/"/g, '""')}"`;
-            const created = new Date(note.createdAt).toLocaleString();
-            const updated = new Date(note.updatedAt).toLocaleString();
-            const content = `"${note.content.replace(/"/g, '""')}"`;
-            csv += `${title},${created},${updated},${content}\n`;
-        });
-        
-        // Add unsaved content if exists
-        const unsavedTitle = this.noteTitle.value.trim();
-        const unsavedContent = this.noteContent.value.trim();
-        if (unsavedTitle || unsavedContent) {
-            const title = `"${(unsavedTitle || 'Untitled Note').replace(/"/g, '""')}"`;
-            const created = new Date().toLocaleString();
-            const content = `"${unsavedContent.replace(/"/g, '""')}"`;
-            csv += `${title},${created},${created},${content}\n`;
-        }
-        
-        return csv;
-    }
+
     
     generateWordPreview() {
         // Include unsaved content in notes array
         const allNotes = [...this.notes];
         const unsavedTitle = this.noteTitle.value.trim();
-        const unsavedContent = this.noteContent.value.trim();
+        const unsavedContent = this.stripHtml(this.noteContent.innerHTML).trim();
         
         if (unsavedTitle || unsavedContent) {
             allNotes.push({
@@ -811,147 +795,16 @@ class TimerAndRecorder {
         
         return preview;
     }
-    
-    async generateWordDocument() {
-        try {
-            // Check if docx library is loaded
-            if (typeof docx === 'undefined') {
-                throw new Error('docx library not loaded. Please refresh the page and try again.');
-            }
-            
-            console.log('docx library loaded:', typeof docx);
-            console.log('docx object:', docx);
-            
-            const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
-        
-        // Include unsaved content in notes array
+      async generateWordDocument() {
         const allNotes = [...this.notes];
-        const unsavedTitle = this.noteTitle.value.trim();
-        const unsavedContent = this.noteContent.value.trim();
+        const currentTitle = this.noteTitle.value.trim();
+        const currentContent = this.noteContent.innerHTML.trim();
         
-        if (unsavedTitle || unsavedContent) {
+        const isCurrentEmpty = !currentContent || currentContent === '<br>' || currentContent === '<div><br></div>';
+        if (currentTitle || !isCurrentEmpty) {
             allNotes.push({
-                id: 'unsaved',
-                title: unsavedTitle || 'Untitled Note',
-                content: unsavedContent,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                isUnsaved: true
-            });
-        }
-        
-        const children = [
-            new Paragraph({
-                children: [
-                    new TextRun({
-                        text: "Notes Export",
-                        bold: true,
-                        size: 32
-                    })
-                ],
-                heading: HeadingLevel.TITLE,
-                alignment: AlignmentType.CENTER,
-                spacing: { after: 400 }
-            }),
-            new Paragraph({
-                children: [
-                    new TextRun({
-                        text: `Export Date: ${new Date().toLocaleString()}`,
-                        italics: true,
-                        size: 20
-                    })
-                ],
-                alignment: AlignmentType.CENTER,
-                spacing: { after: 400 }
-            }),
-            new Paragraph({
-                children: [
-                    new TextRun({
-                        text: `Total Notes: ${allNotes.length}`,
-                        size: 20
-                    })
-                ],
-                spacing: { after: 600 }
-            })
-        ];
-        
-        // Add each note
-        allNotes.forEach((note, index) => {
-            const isUnsaved = note.isUnsaved;
-            const title = isUnsaved ? `${note.title} (Unsaved)` : note.title;
-            
-            children.push(
-                new Paragraph({
-                    children: [
-                        new TextRun({
-                            text: `${index + 1}. ${title}`,
-                            bold: true,
-                            size: 24
-                        })
-                    ],
-                    heading: HeadingLevel.HEADING_1,
-                    spacing: { before: 400, after: 200 }
-                }),
-                new Paragraph({
-                    children: [
-                        new TextRun({
-                            text: `Created: ${new Date(note.createdAt).toLocaleString()}`,
-                            size: 18,
-                            color: "666666"
-                        })
-                    ],
-                    spacing: { after: 100 }
-                }),
-                new Paragraph({
-                    children: [
-                        new TextRun({
-                            text: `Updated: ${new Date(note.updatedAt).toLocaleString()}`,
-                            size: 18,
-                            color: "666666"
-                        })
-                    ],
-                    spacing: { after: 200 }
-                }),
-                new Paragraph({
-                    children: [
-                        new TextRun({
-                            text: note.content || "No content",
-                            size: 20
-                        })
-                    ],
-                    spacing: { after: 400 }
-                })
-            );
-        });
-        
-        const doc = new Document({
-            sections: [{
-                properties: {},
-                children: children
-            }]
-        });
-        
-        return await Packer.toBlob(doc);
-        } catch (error) {
-            console.error('Error generating Word document:', error);
-            this.showNotification('Error generating Word document. Creating HTML fallback...', 'warning');
-            
-            // Fallback: Create HTML that can be opened in Word
-            return this.generateWordFallback();
-        }
-    }
-    
-    generateWordFallback() {
-        // Include unsaved content in notes array
-        const allNotes = [...this.notes];
-        const unsavedTitle = this.noteTitle.value.trim();
-        const unsavedContent = this.noteContent.value.trim();
-        
-        if (unsavedTitle || unsavedContent) {
-            allNotes.push({
-                id: 'unsaved',
-                title: unsavedTitle || 'Untitled Note',
-                content: unsavedContent,
+                title: currentTitle || 'Untitled Note',
+                content: currentContent,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
                 isUnsaved: true
@@ -966,34 +819,33 @@ class TimerAndRecorder {
     <meta charset="utf-8">
     <title>Notes Export</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        h1 { text-align: center; color: #333; }
-        h2 { color: #666; border-bottom: 2px solid #ddd; padding-bottom: 5px; }
-        .note { margin-bottom: 30px; }
-        .timestamp { color: #888; font-size: 14px; }
-        .content { margin-top: 10px; line-height: 1.6; }
+        body { font-family: Arial, sans-serif; margin: 40px; color: #333; line-height: 1.5; }
+        h1 { text-align: center; color: #8B5CF6; border-bottom: 2px solid #8B5CF6; padding-bottom: 10px; }
+        h2 { color: #1d1d1f; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-top: 30px; }
+        .note { margin-bottom: 40px; }
+        .timestamp { color: #86868b; font-size: 11px; margin-bottom: 15px; }
+        .content { margin-top: 15px; font-size: 14px; }
+        ul, ol { margin-left: 20px; }
     </style>
 </head>
 <body>
-    <h1>Notes Export</h1>
-    <p style="text-align: center; color: #666;">
-        Export Date: ${new Date().toLocaleString()}<br>
-        Total Notes: ${allNotes.length}
+    <h1>RecordHub Notes Export</h1>
+    <p style="text-align: center; color: #666; font-size: 12px;">
+        Exported on ${new Date().toLocaleString()} | Total Notes: ${allNotes.length}
     </p>
-    <hr style="margin: 30px 0;">`;
+    <hr>`;
         
         allNotes.forEach((note, index) => {
-            const isUnsaved = note.isUnsaved;
-            const title = isUnsaved ? `${note.title} (Unsaved)` : note.title;
-            
+            const displayTitle = note.isUnsaved ? `${note.title} (Current)` : note.title;
             html += `
     <div class="note">
-        <h2>${index + 1}. ${this.escapeHtml(title)}</h2>
+        <h2>${index + 1}. ${this.escapeHtml(displayTitle)}</h2>
         <div class="timestamp">
-            Created: ${new Date(note.createdAt).toLocaleString()}<br>
             Updated: ${new Date(note.updatedAt).toLocaleString()}
         </div>
-        <div class="content">${this.escapeHtml(note.content || 'No content').replace(/\n/g, '<br>')}</div>
+        <div class="content">
+            ${note.content || 'No content'}
+        </div>
     </div>`;
         });
         
@@ -1001,16 +853,13 @@ class TimerAndRecorder {
 </body>
 </html>`;
         
-        return new Blob([html], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+        return new Blob([html], { type: 'application/msword' });
     }
-    
+
     async exportNotes() {
         let fileName = this.notesFileNameInput.value.trim();
         const format = this.notesFileFormatSelect.value;
-        const extension = format === 'txt' ? 'txt' : 
-                        format === 'md' ? 'md' : 
-                        format === 'json' ? 'json' : 
-                        format === 'csv' ? 'csv' : 'docx';
+        const extension = format === 'txt' ? 'txt' : 'docx';
         
         // For Word documents, use note title + date/time if no custom name provided
         if (format === 'docx' && !fileName) {
@@ -1032,11 +881,9 @@ class TimerAndRecorder {
         let blob;
         
         if (format === 'docx') {
-            // Handle Word document export
-            console.log('Starting Word document generation...');
             try {
+                // Handle Word document export
                 blob = await this.generateWordDocument();
-                console.log('Word document generation result:', blob);
                 if (!blob) {
                     this.showNotification('Failed to generate Word document. Please try again.', 'error');
                     return;
@@ -1047,33 +894,12 @@ class TimerAndRecorder {
                 return;
             }
         } else {
-            // Handle other formats
-            let content = '';
-            let mimeType = '';
-            
-            switch (format) {
-                case 'txt':
-                    content = this.generateTextPreview();
-                    mimeType = 'text/plain';
-                    break;
-                case 'md':
-                    content = this.generateMarkdownPreview();
-                    mimeType = 'text/markdown';
-                    break;
-                case 'json':
-                    content = this.generateJsonPreview();
-                    mimeType = 'application/json';
-                    break;
-                case 'csv':
-                    content = this.generateCsvPreview();
-                    mimeType = 'text/csv';
-                    break;
-            }
-            
-            blob = new Blob([content], { type: mimeType });
+            // Handle Text format (Default)
+            const content = this.generateTextPreview();
+            blob = new Blob([content], { type: 'text/plain' });
         }
-        const url = URL.createObjectURL(blob);
         
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = `${fileName}.${extension}`;
@@ -1085,6 +911,8 @@ class TimerAndRecorder {
         this.hideNotesExportModal();
         this.showNotification(`Notes exported as ${extension.toUpperCase()} successfully!`, 'success');
     }
+
+
 }
 
 // Initialize the application when the page loads
